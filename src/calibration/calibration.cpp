@@ -32,12 +32,25 @@ CameraParameters runCalibration(
         cv::cvtColor(img,gray,
                      cv::COLOR_BGR2GRAY);
 
-        if (cv::findChessboardCorners(
+        if (cv::findChessboardCornersSB(
                 gray,boardSize,corners))
         {
             imgPts.push_back(corners);
             objPts.push_back(obj);
         }
+
+        if (!cv::findChessboardCornersSB(gray, boardSize, corners))
+        {
+            std::cout << "Chessboard NOT found in: "
+                    << path << std::endl;
+            continue;
+        }
+        else
+        {
+            std::cout << "Chessboard found in: "
+                    << path << std::endl;
+        }
+
     }
 
     cv::Mat K,dist;

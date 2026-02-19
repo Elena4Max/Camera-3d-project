@@ -56,17 +56,51 @@ int main(int argc, char** argv)
     if (mode == "demo")
     {
         std::string videoPath = argv[2];
-        std::string cameraFile = argv[3];
 
+        bool useCalibration = false;
         cv::Mat K, dist;
-        loadCamera(cameraFile, K, dist);
 
-        YOLODetector detector("models/yolov5n.onnx");
+        if (argc >= 4)
+        {
+            useCalibration = true;
+            std::string cameraFile = argv[3];
+            loadCamera(cameraFile, K, dist);
+        }
+
+        YOLODetector detector("../models/yolov5n.onnx");
 
         cv::VideoCapture cap(videoPath);
-
         cv::Mat frame;
+
         cap >> frame;
+
+        cv::VideoWriter writer(
+            useCalibration ? "after.mp4" : "before.mp4",
+            cv::VideoWriter::fourcc('m','p','4','v'),
+            30,
+            frame.size());
+
+        if (!useCalibration)
+        {
+            cap.set(cv::CAP_PROP_POS_FRAMES, 0);
+
+            while (cap.read(frame))
+            {
+                auto detections = detector.detect(frame);
+
+                for (const auto& det : detections)
+                {
+                    cv::rectangle(frame,
+                                det.box,
+                                {0,0,255},
+                                2);
+                }
+
+                writer.write(frame);
+            }
+
+            return 0;
+        }
 
         std::vector<cv::Point2f> groundPts =
         {
@@ -93,33 +127,28 @@ int main(int argc, char** argv)
 
         cap.set(cv::CAP_PROP_POS_FRAMES, 0);
 
-        cv::VideoWriter writer(
-            "output.mp4",
-            cv::VideoWriter::fourcc('m','p','4','v'),
-            30,
-            frame.size());
+        cv::Mat undistorted;
 
         while (cap.read(frame))
         {
-            cv::undistort(frame, frame, K, dist);
+            cv::undistort(frame, undistorted, K, dist);
 
-            auto detections =
-                detector.detect(frame);
+            auto detections = detector.detect(undistorted);
 
             for (const auto& det : detections)
             {
                 float u = det.box.x +
-                          det.box.width/2.0f;
+                        det.box.width/2.0f;
                 float v = det.box.y +
-                          det.box.height;
+                        det.box.height;
 
                 cv::Point2f g =
                     imageToGround({u,v}, ground);
 
                 draw3DBox(frame,
-                          K, dist, R, t,
-                          g.x, g.y,
-                          1.8f,4.2f,1.5f);
+                        K, dist, R, t,
+                        g.x, g.y,
+                        1.8f,4.2f,1.5f);
             }
 
             writer.write(frame);
